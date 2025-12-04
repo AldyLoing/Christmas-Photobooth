@@ -2,6 +2,8 @@
 
 Aplikasi web photobooth bertema Natal yang dibuat dengan Next.js 15, TypeScript, Tailwind CSS, dan Framer Motion.
 
+🌐 **Live Demo:** [http://santasnapbooth.com/](http://santasnapbooth.com/)
+
 ## ✨ Fitur
 
 - 📸 **Capture Foto Real-time** - Ambil foto langsung dari kamera perangkat
@@ -13,6 +15,8 @@ Aplikasi web photobooth bertema Natal yang dibuat dengan Next.js 15, TypeScript,
 - 🔊 **Music Player** - Tombol untuk mengontrol musik latar (opsional)
 
 ## 🚀 Cara Menjalankan
+
+### Development Mode
 
 1. **Install Dependencies**
    ```bash
@@ -28,6 +32,24 @@ Aplikasi web photobooth bertema Natal yang dibuat dengan Next.js 15, TypeScript,
    ```
    http://localhost:3000
    ```
+
+### Production Build
+
+1. **Build untuk Production**
+   ```bash
+   npm run build
+   ```
+
+2. **Jalankan Production Server**
+   ```bash
+   npm start
+   ```
+
+### Deploy ke Hosting
+
+Untuk deploy ke **Jagoan Hosting (cPanel)**, silakan baca panduan lengkap di:
+
+📖 **[DEPLOYMENT_JAGOAN.md](./DEPLOYMENT_JAGOAN.md)**
 
 ## 📁 Struktur Proyek
 
