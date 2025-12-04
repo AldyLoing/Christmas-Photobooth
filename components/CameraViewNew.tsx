@@ -40,10 +40,18 @@ export default function CameraView({ filters, selectedLayout, onCapture }: Camer
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    let animationFrameId: number;
+
     const drawPreview = () => {
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        // Set canvas size if not set
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+        }
+
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Mirror effect for preview
         ctx.save();
@@ -62,10 +70,16 @@ export default function CameraView({ filters, selectedLayout, onCapture }: Camer
           })));
         }
       }
-      requestAnimationFrame(drawPreview);
+      animationFrameId = requestAnimationFrame(drawPreview);
     };
 
     drawPreview();
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [stream, filters]);
 
   const startCamera = async () => {
@@ -269,14 +283,13 @@ export default function CameraView({ filters, selectedLayout, onCapture }: Camer
         animate={{ opacity: 1, scale: 1 }}
         className="relative bg-black rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20"
       >
-        {/* Hidden video element */}
+        {/* Hidden video element - but needs to load */}
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className="absolute opacity-0 pointer-events-none"
-          style={{ width: '1px', height: '1px' }}
+          className="hidden"
         />
 
         {/* Preview canvas with filters */}
