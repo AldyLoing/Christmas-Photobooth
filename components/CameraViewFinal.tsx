@@ -18,12 +18,14 @@ export default function CameraViewFinal({ filters, selectedLayout, onCapture }: 
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<string[]>([]);
+  const [isInitializing, setIsInitializing] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const streamInitialized = useRef(false);
+  const pendingStreamRef = useRef<MediaStream | null>(null);
 
   // Add debug log
   const addDebugLog = (message: string) => {
@@ -70,6 +72,7 @@ export default function CameraViewFinal({ filters, selectedLayout, onCapture }: 
       return;
     }
 
+    setIsInitializing(true);
     addDebugLog("🎬 Starting camera initialization (user-triggered)");
     
     try {
@@ -122,82 +125,17 @@ export default function CameraViewFinal({ filters, selectedLayout, onCapture }: 
       addDebugLog(`📊 Stream settings: ${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
       addDebugLog(`📷 Device: ${videoTrack.label}`);
 
-      // Wait for ref to be available (React 18+ may delay ref assignment)
-      await new Promise<void>((resolve) => {
-        if (videoRef.current) {
-          resolve();
-        } else {
-          const checkRef = setInterval(() => {
-            if (videoRef.current) {
-              clearInterval(checkRef);
-              resolve();
-            }
-          }, 50);
-          
-          // Timeout after 3 seconds
-          setTimeout(() => {
-            clearInterval(checkRef);
-            resolve();
-          }, 3000);
-        }
-      });
-
-      // Attach to video element
-      if (!videoRef.current) {
-        throw new Error("Video element ref is null after waiting");
-      }
-
-      const video = videoRef.current;
-      addDebugLog("🔗 Attaching stream to video element...");
+      // Store stream temporarily and trigger render
+      pendingStreamRef.current = mediaStream;
+      setHasPermission(true); // This will render the video element
+      addDebugLog("🔄 Video element will be rendered, waiting for ref...");
       
-      video.srcObject = mediaStream;
-
-      // Wait for video to be ready with timeout
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Video load timeout after 10 seconds"));
-        }, 10000);
-
-        const onLoadedMetadata = () => {
-          clearTimeout(timeout);
-          addDebugLog(`📐 Video metadata loaded: ${video.videoWidth}x${video.videoHeight}`);
-          addDebugLog(`🎬 Ready state: ${video.readyState}`);
-          
-          video.play()
-            .then(() => {
-              addDebugLog("▶️ Video playing successfully");
-              resolve();
-            })
-            .catch(err => {
-              addDebugLog(`❌ Play failed: ${err.message}`);
-              reject(err);
-            });
-        };
-
-        const onError = (e: Event) => {
-          clearTimeout(timeout);
-          const errorMsg = video.error ? video.error.message : "Unknown video error";
-          addDebugLog(`❌ Video error: ${errorMsg}`);
-          reject(new Error(errorMsg));
-        };
-
-        video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
-        video.addEventListener('error', onError, { once: true });
-
-        // Fallback: if video is already ready
-        if (video.readyState >= 2) {
-          clearTimeout(timeout);
-          onLoadedMetadata();
-        }
-      });
-      
+      // Don't set stream yet - wait for useEffect to handle it
       streamInitialized.current = true;
-      setStream(mediaStream);
-      setHasPermission(true);
-      setError(null);
-      addDebugLog("🎉 Camera initialization complete!");
+      setIsInitializing(false);
 
     } catch (err) {
+      setIsInitializing(false);
       addDebugLog(`❌ Camera initialization failed: ${err}`);
       setHasPermission(false);
       streamInitialized.current = false;
@@ -233,6 +171,80 @@ export default function CameraViewFinal({ filters, selectedLayout, onCapture }: 
       }
     }
   }, []);
+
+  // Handle stream attachment after video element is rendered
+  useEffect(() => {
+    if (!pendingStreamRef.current || !videoRef.current || stream) return;
+
+    const attachStream = async () => {
+      const mediaStream = pendingStreamRef.current!;
+      const video = videoRef.current!;
+
+      addDebugLog("🔗 Attaching pending stream to video element...");
+      
+      video.srcObject = mediaStream;
+
+      try {
+        // Wait for video to be ready
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error("Video load timeout after 10 seconds"));
+          }, 10000);
+
+          const onLoadedMetadata = () => {
+            clearTimeout(timeout);
+            addDebugLog(`📐 Video metadata loaded: ${video.videoWidth}x${video.videoHeight}`);
+            addDebugLog(`🎬 Ready state: ${video.readyState}`);
+            
+            video.play()
+              .then(() => {
+                addDebugLog("▶️ Video playing successfully");
+                resolve();
+              })
+              .catch(err => {
+                addDebugLog(`❌ Play failed: ${err.message}`);
+                reject(err);
+              });
+          };
+
+          const onError = (e: Event) => {
+            clearTimeout(timeout);
+            const errorMsg = video.error ? video.error.message : "Unknown video error";
+            addDebugLog(`❌ Video error: ${errorMsg}`);
+            reject(new Error(errorMsg));
+          };
+
+          video.addEventListener('loadedmetadata', onLoadedMetadata, { once: true });
+          video.addEventListener('error', onError, { once: true });
+
+          // Fallback: if video is already ready
+          if (video.readyState >= 2) {
+            clearTimeout(timeout);
+            onLoadedMetadata();
+          }
+        });
+
+        setStream(mediaStream);
+        setError(null);
+        pendingStreamRef.current = null;
+        addDebugLog("🎉 Camera initialization complete!");
+
+      } catch (err) {
+        addDebugLog(`❌ Stream attachment failed: ${err}`);
+        setError("Failed to display camera preview");
+        setHasPermission(false);
+        streamInitialized.current = false;
+        
+        // Clean up the stream
+        if (mediaStream) {
+          mediaStream.getTracks().forEach(track => track.stop());
+        }
+        pendingStreamRef.current = null;
+      }
+    };
+
+    attachStream();
+  }, [hasPermission, stream]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -459,9 +471,10 @@ export default function CameraViewFinal({ filters, selectedLayout, onCapture }: 
         {/* CRITICAL: Camera MUST be initialized from user gesture */}
         <button
           onClick={initializeCamera}
-          className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-green-500/50 hover:scale-105 transition-all"
+          disabled={isInitializing}
+          className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white font-bold text-lg rounded-xl shadow-lg hover:shadow-green-500/50 hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          🎥 Enable Camera
+          {isInitializing ? "🔄 Initializing..." : "🎥 Enable Camera"}
         </button>
 
         {debugInfo.length > 0 && (
