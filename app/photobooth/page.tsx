@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import CameraView from "@/components/CameraViewNew";
+import CameraView from "@/components/CameraViewProduction";
 import SnowfallEffect from "@/components/SnowfallEffect";
 import FilterSelector, { type Filter } from "@/components/FilterSelector";
 import LayoutPreview, { type PhotoLayout } from "@/components/LayoutPreview";

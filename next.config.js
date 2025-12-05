@@ -2,12 +2,11 @@
 
 const nextConfig = {
   /* config options here */
+  output: 'standalone',
   pageExtensions: ['tsx', 'ts', 'jsx', 'js'],
   typescript: {
-    // Ignore TypeScript errors during build for documentation files
     ignoreBuildErrors: false,
   },
-  // Exclude documentation files from build
   webpack: (config) => {
     config.externals = [...(config.externals || [])];
     return config;
